@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 px_to_skel.py — convert pixel placement on a square symbol canvas to Spine bone
-coords + attachment size, for the pixi-spine 3.8 slot rig.
+coordinates and attachment size for a Spine 4.2 slot rig.
 
 Mapping (y up in Spine):
     bx = (px/C - 0.5) * S

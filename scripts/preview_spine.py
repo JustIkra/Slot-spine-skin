@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-preview_spine.py — a pixi-spine-3.8-lite offline renderer for slot-symbol rigs.
+preview_spine.py — a Spine 4.2 subset offline renderer for slot-symbol rigs.
 
-Reads a Spine 3.8 JSON + a directory of part PNGs and renders a CONTACT SHEET of a
+Reads Spine 4.2 JSON plus a directory of part PNGs and renders a contact sheet of a
 chosen animation, so you can catch ghosts / holes / timing BEFORE the slow in-game
-loop. Supports: scalar bezier curves (3.8 format), the bone hierarchy
-(translate/rotate/scale), slot draw order, additive slots (color alpha), and the
+loop. Supports: array bezier curves, the bone hierarchy (translate/rotate/scale),
+slot draw order, additive slots (`alpha` or `rgba` timelines), and the
 attachment-swap frame sequence.
 
 Frame name -> file mapping: region "png/wild_egypt_sun" -> <parts-dir>/wild_egypt_sun.png
@@ -41,7 +41,22 @@ def bez(p1x, p1y, p2x, p2y, t):
     return 3 * (1 - m) ** 2 * m * p1y + 3 * (1 - m) * m * m * p2y + m ** 3
 
 
-def ev(keys, t, field, default=0.0):
+def curve_value(key, channel, t):
+    curve = key.get("curve")
+    if curve == "stepped":
+        return 0.0
+    if curve is None:
+        return t
+    if not isinstance(curve, list):
+        raise ValueError("Spine 4.2 bezier curve must be an array")
+    offset = channel * 4
+    points = curve[offset:offset + 4]
+    if len(points) != 4:
+        raise ValueError("Spine 4.2 bezier curve needs four values per animated channel")
+    return bez(*points, t)
+
+
+def ev(keys, t, field, default=0.0, channel=0):
     if not keys:
         return default
 
@@ -57,11 +72,9 @@ def ev(keys, t, field, default=0.0):
         if a["time"] <= t <= b["time"]:
             span = b["time"] - a["time"]
             lt = (t - a["time"]) / span if span else 0.0
-            c = a.get("curve")
-            if c == "stepped":
+            if a.get("curve") == "stepped":
                 return g(a)
-            if isinstance(c, (int, float)):
-                lt = bez(c, a.get("c2", 0.0), a.get("c3", 1.0), a.get("c4", 1.0), lt)
+            lt = curve_value(a, channel, lt)
             return g(a) + (g(b) - g(a)) * lt
     return g(keys[-1])
 
@@ -76,8 +89,8 @@ def ev_attachment(keys, t):
     return name
 
 
-def ev_alpha(keys, t, default=1.0):
-    """RRGGBBAA color timeline -> alpha 0..1 (linear/stepped on AA)."""
+def ev_rgba_alpha(keys, t, default=1.0):
+    """RRGGBBAA timeline -> alpha 0..1."""
     if not keys:
         return default
     def aa(k):
@@ -91,11 +104,9 @@ def ev_alpha(keys, t, default=1.0):
         if a["time"] <= t <= b["time"]:
             span = b["time"] - a["time"]
             lt = (t - a["time"]) / span if span else 0.0
-            c = a.get("curve")
-            if c == "stepped":
+            if a.get("curve") == "stepped":
                 return aa(a)
-            if isinstance(c, (int, float)):
-                lt = bez(c, a.get("c2", 0.0), a.get("c3", 1.0), a.get("c4", 1.0), lt)
+            lt = curve_value(a, 3, lt)
             return aa(a) + (aa(b) - aa(a)) * lt
     return aa(keys[-1])
 
@@ -112,11 +123,11 @@ def world_transforms(spine, anim, t):
         srot = b.get("rotation", 0.0)
         ssx, ssy = b.get("scaleX", 1.0), b.get("scaleY", 1.0)
         tl = abones.get(name, {})
-        tx = ev(tl.get("translate", []), t, "x", 0.0)
-        ty = ev(tl.get("translate", []), t, "y", 0.0)
+        tx = ev(tl.get("translate", []), t, "x", 0.0, 0)
+        ty = ev(tl.get("translate", []), t, "y", 0.0, 1)
         ang = ev(tl.get("rotate", []), t, "angle", 0.0)
-        ascx = ev(tl.get("scale", []), t, "x", 1.0)
-        ascy = ev(tl.get("scale", []), t, "y", 1.0)
+        ascx = ev(tl.get("scale", []), t, "x", 1.0, 0)
+        ascy = ev(tl.get("scale", []), t, "y", 1.0, 1)
         lx, ly = sx0 + tx, sy0 + ty
         lrot = srot + ang
         lsx, lsy = ssx * ascx, ssy * ascy
@@ -200,8 +211,11 @@ def render_frame(spine, anim, t, parts, skin, C, S, bg):
         rot = wr + arot
         if abs(rot) > 0.01:
             tex = tex.rotate(rot, resample=Image.BICUBIC, expand=True)
-        # slot color alpha
-        alpha = ev_alpha(atl.get("color", []), t, default=int(slot.get("color", "ffffffff")[6:8], 16) / 255.0)
+        setup_alpha = int(slot.get("color", "ffffffff")[6:8], 16) / 255.0
+        if "alpha" in atl:
+            alpha = ev(atl["alpha"], t, "value", setup_alpha)
+        else:
+            alpha = ev_rgba_alpha(atl.get("rgba", []), t, setup_alpha)
         if slot.get("blend") == "additive":
             canvas = composite_add(canvas, tex, px, py, alpha)
         else:

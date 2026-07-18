@@ -1,49 +1,34 @@
 # slot-spine-skin
 
-A Claude skill for turning a **flat, pre-baked slot symbol** (one finished PNG — frame +
-character + sun + plaque + background) into a **multi-part Spine 2D rig** animated for the
-**pixi-spine 3.8** runtime used by Urso / `@zephyr/slot-base` slot engines.
+Codex skill for turning a flat slot symbol into a multi-part Spine 4.2 rig for
+the current Urso/Zephyr Pixi 8 runtime.
 
-It is the distilled, reusable version of a full production reskin where a static "WILD"
-icon was turned into a win/landing/idle animation: the character grows, the sun spins and
-rises, a "WILD" plaque throbs, light bursts from inside out, the eyes glow and a shine
-sweeps across the character.
+The production profile is exact `@zephyr/slot-base 0.11.2`, exact overridden
+`@esotericsoftware/spine-pixi-v8 4.2.119`, Spine 4.2 JSON, and the Urso Texture
+Builder. Always confirm the target game's `package.json`, `package-lock.json`,
+loader, and installed package source before integration.
 
-## Read first
-- `SKILL.md` — the playbook (the hard rules + the pipeline).
-- `references/pixi-spine-3.8.md` — the JSON format that actually parses (scalar curves!).
-- `references/cutting-with-gemini.md` — how to cut components cleanly (magenta + chroma).
-- `references/video-to-sequence.md` — coherent motion (opening/leafing/morph) via image-to-video → attachment sequence.
-- `references/rigging-and-animation.md` — bone layout, no-hole rules, win/landing/idle recipes,
-  FX sequences.
+## Contents
 
-## Tools (`scripts/`)
-| script | what |
-|---|---|
-| `preview_spine.py` | spine-3.8-lite offline renderer → contact sheet of an animation (verify before the game). |
-| `build_fx_sequence.py` | generate the eyes-glow + shine-sweep FX frame sequence (additive overlay). |
-| `px_to_skel.py` | pixel placement → Spine bone coords + attachment size. |
+- `SKILL.md` — end-to-end production playbook.
+- `references/spine-pixi-v8-4.2.md` — current JSON/timeline contract.
+- `references/cutting-with-gemini.md` — component extraction through slot-gen.
+- `references/rigging-and-animation.md` — pivot, layering, and timing recipes.
+- `references/video-to-sequence.md` — coherent motion through attachment swaps.
+- `scripts/preview_spine.py` — offline Spine 4.2 subset contact-sheet renderer.
+- `scripts/build_fx_sequence.py` — additive eye-glow and shine-sweep frames.
+- `scripts/px_to_skel.py` — pixel placement to skeleton coordinates.
 
-Image generation / background removal is delegated to the **slot-gen** skill
-(`openrouter_image.py`, `chroma_key.py`, `recolor_lut.py`). Set `export SLOTGEN=…/slot-gen/scripts`.
+Provider keys are read from `~/.codex/.env` and must never be committed.
 
-## Quick start
+## Quick verification
+
 ```bash
-pip install -r requirements.txt --break-system-packages -q
-export SLOTGEN="$HOME/.claude/skills/slot-gen/scripts"
-
-# 1. cut parts (see references/cutting-with-gemini.md), put PNGs in parts/
-# 2. build wild.json (3.8 scalar curves!) with help from px_to_skel.py
-# 3. FX sequence:
-python3 scripts/build_fx_sequence.py --char parts/wild_char.png --eyes 120,134 180,134 \
-    --frames 14 --out-dir parts/ --prefix wild_fx_ --preview .tmp_<symbol>/fx.png
-# 4. PREVIEW before the game:
-python3 scripts/preview_spine.py --spine wild.json --parts-dir parts/ \
-    --canvas 400 --skel 311 --anim win --out .tmp_<symbol>/win.png
-# 5. build: yarn assets:build && yarn assets:copy && yarn build:dev
+python3 scripts/preview_spine.py --spine symbol.json --parts-dir parts \
+  --canvas 400 --skel 311 --anim win --out .tmp_symbol/win.png
+npm run assets:textures
+npm run assets:copy
 ```
 
-## The one rule that wastes the most time
-pixi-spine **3.8** wants the curve as **four scalars** — `"curve":0.25,"c2":0,"c3":0.75,"c4":1` —
-NOT the Spine 4.x array `"curve":[…]`. The array form → NaN → invisible parts. Don't copy 4.x
-examples (most of the web, including context7).
+The final gate is parsing with the exact installed Spine 4.2 runtime and testing
+the built asset through the real wrapper with zero game/local console errors.

@@ -7,7 +7,7 @@ polls until completed, downloads the mp4. Slice it with ffmpeg + key per video-t
   python3 gen_video.py --first start.png --last end.png --out clip.mp4 \
      --prompt "subject smiles and the torch flares, static locked camera, magenta bg unchanged"
 
-Key read from ~/.claude/.env (OPENROUTER_KEY). ~$0.08/s, 5 s clip → 121 frames @ ~960².
+Key read from ~/.codex/.env (OPENROUTER_KEY). ~$0.08/s, 5 s clip → 121 frames @ ~960².
 Both anchors MUST share an identical background AND subject — only the effect differs (else the
 clip's exposure flips mid-way and the light "jumps"). Derive the calm anchor FROM the lit one.
 """
@@ -15,7 +15,7 @@ import argparse, base64, json, mimetypes, os, sys, time, urllib.error, urllib.re
 
 
 def read_key():
-    env = os.path.expanduser("~/.claude/.env")
+    env = os.path.expanduser("~/.codex/.env")
     val = None
     for line in open(env):
         s = line.rstrip("\n")
@@ -24,7 +24,7 @@ def read_key():
         if s.startswith("OPENROUTER_KEY="):
             val = s.split("=", 1)[1].strip()
     if not val:
-        sys.exit("no OPENROUTER_KEY in ~/.claude/.env")
+        sys.exit("no OPENROUTER_KEY in ~/.codex/.env")
     return val
 
 
