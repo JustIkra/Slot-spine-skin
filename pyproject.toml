@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slotspine-tools"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = ["Pillow>=10", "numpy>=1.24", "opencv-python>=4.8"]
+
+[tool.setuptools]
+packages = ["slotspine_tools"]
+package-dir = {slotspine_tools = "scripts"}
+license-files = ["licenses/*.txt", "THIRD_PARTY_NOTICES.md"]

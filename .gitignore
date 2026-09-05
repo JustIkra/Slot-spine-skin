@@ -19,3 +19,9 @@ node_modules/
 
 # Build / generated artifacts
 *.log
+.tmp*/
+.env*
+!.env.example
+*.egg-info/
+build/
+dist/

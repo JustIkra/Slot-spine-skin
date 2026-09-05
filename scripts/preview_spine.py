@@ -41,19 +41,29 @@ def bez(p1x, p1y, p2x, p2y, t):
     return 3 * (1 - m) ** 2 * m * p1y + 3 * (1 - m) * m * m * p2y + m ** 3
 
 
-def curve_value(key, channel, t):
+def curve_value(key, channel, t, t0=0, t1=1, v0=0, v1=1):
     curve = key.get("curve")
     if curve == "stepped":
-        return 0.0
+        return v0
     if curve is None:
-        return t
+        return v0 + (v1-v0)*t
     if not isinstance(curve, list):
         raise ValueError("Spine 4.2 bezier curve must be an array")
     offset = channel * 4
     points = curve[offset:offset + 4]
     if len(points) != 4:
         raise ValueError("Spine 4.2 bezier curve needs four values per animated channel")
-    return bez(*points, t)
+    x1, y1, x2, y2 = points
+    lo, hi = 0.0, 1.0
+    for _ in range(30):
+        u = (lo+hi)/2
+        x = (1-u)**3*t0 + 3*(1-u)**2*u*x1 + 3*(1-u)*u*u*x2 + u**3*t1
+        if x < t0 + (t1-t0)*t:
+            lo = u
+        else:
+            hi = u
+    u = (lo+hi)/2
+    return (1-u)**3*v0 + 3*(1-u)**2*u*y1 + 3*(1-u)*u*u*y2 + u**3*v1
 
 
 def ev(keys, t, field, default=0.0, channel=0):
@@ -74,8 +84,7 @@ def ev(keys, t, field, default=0.0, channel=0):
             lt = (t - a["time"]) / span if span else 0.0
             if a.get("curve") == "stepped":
                 return g(a)
-            lt = curve_value(a, channel, lt)
-            return g(a) + (g(b) - g(a)) * lt
+            return curve_value(a, channel, lt, a["time"], b["time"], g(a), g(b))
     return g(keys[-1])
 
 
@@ -106,8 +115,7 @@ def ev_rgba_alpha(keys, t, default=1.0):
             lt = (t - a["time"]) / span if span else 0.0
             if a.get("curve") == "stepped":
                 return aa(a)
-            lt = curve_value(a, 3, lt)
-            return aa(a) + (aa(b) - aa(a)) * lt
+            return curve_value(a, 3, lt, a["time"], b["time"], aa(a), aa(b))
     return aa(keys[-1])
 
 
@@ -125,7 +133,7 @@ def world_transforms(spine, anim, t):
         tl = abones.get(name, {})
         tx = ev(tl.get("translate", []), t, "x", 0.0, 0)
         ty = ev(tl.get("translate", []), t, "y", 0.0, 1)
-        ang = ev(tl.get("rotate", []), t, "angle", 0.0)
+        ang = ev(tl.get("rotate", []), t, "value", 0.0)
         ascx = ev(tl.get("scale", []), t, "x", 1.0, 0)
         ascy = ev(tl.get("scale", []), t, "y", 1.0, 1)
         lx, ly = sx0 + tx, sy0 + ty
@@ -175,7 +183,7 @@ def render_frame(spine, anim, t, parts, skin, C, S, bg):
     cx0, cy0 = C / 2, C / 2
     wt = world_transforms(spine, anim, t)
     aslots = anim.get("slots", {})
-    canvas = Image.new("RGBA", (C, C), (0, 0, 0, 0))
+    canvas = Image.new("RGBA", (C, C), (*bg, 255))
     for slot in spine["slots"]:
         sname = slot["name"]
         bone = slot["bone"]
@@ -190,7 +198,7 @@ def render_frame(spine, anim, t, parts, skin, C, S, bg):
             continue
         img = parts.get(region)
         if img is None:
-            continue
+            raise ValueError(f"Missing attachment texture: {region}")
         props = region_props(skin, sname, region)
         aw = props.get("width", img.width)
         ah = props.get("height", img.height)
@@ -229,6 +237,33 @@ def render_frame(spine, anim, t, parts, skin, C, S, bg):
     return out
 
 
+def validate_subset(spine, anim):
+    for constraint in ("ik", "transform", "path", "physics"):
+        if spine.get(constraint):
+            raise ValueError("Use runtime preview for constraints")
+    for bone in spine.get("bones", []):
+        if bone.get("inherit", "normal") != "normal" or bone.get("shearX", 0) or bone.get("shearY", 0):
+            raise ValueError("Use runtime preview for bone inheritance/shear")
+        if bone.get("scaleX", 1) != 1 or bone.get("scaleY", 1) != 1:
+            raise ValueError("Use runtime preview for setup bone scaling")
+    for skin in spine.get("skins", []):
+        for attachments in skin.get("attachments", {}).values():
+            for attachment in attachments.values():
+                if attachment.get("type", "region") != "region" or attachment.get("sequence"):
+                    raise ValueError("Use runtime preview for mesh/deform/sequence attachments")
+    if set(anim) - {"bones", "slots"}:
+        raise ValueError("Unsupported subset animation; use runtime preview")
+    for timelines in anim.get("bones", {}).values():
+        if set(timelines) - {"rotate", "translate"}:
+            raise ValueError("Use runtime preview for scale/shear timelines")
+    for slot in spine.get("slots", []):
+        if slot.get("color", "ffffffff")[:6].lower() != "ffffff" or slot.get("blend", "normal") not in ("normal", "additive"):
+            raise ValueError("Use runtime preview for tint and advanced blend modes")
+    for timelines in anim.get("slots", {}).values():
+        if set(timelines) - {"attachment", "alpha"}:
+            raise ValueError("Use runtime preview for animated color")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--spine", required=True)
@@ -248,6 +283,7 @@ def main():
     if a.anim not in spine["animations"]:
         raise SystemExit(f"animation '{a.anim}' not in {list(spine['animations'])}")
     anim = spine["animations"][a.anim]
+    validate_subset(spine, anim)
     skin = spine["skins"][0]["attachments"]
 
     # load all referenced parts
@@ -261,7 +297,7 @@ def main():
         if os.path.exists(p):
             parts[region] = Image.open(p).convert("RGBA")
         else:
-            print(f"  [warn] missing part for region '{region}': {p}")
+            raise SystemExit(f"Missing part for region '{region}': {p}")
 
     # duration = max key time
     dur = a.duration
