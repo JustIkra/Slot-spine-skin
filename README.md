@@ -11,6 +11,3 @@ a convenience preview, not proof of production-runtime compatibility.
 Tests: python -m unittest discover -s tests -p 'test_*.py'; then run Node tests with
 SLOT_TEST_PROJECT set to an installed game and PYTHON set to the working interpreter.
 Production integration uses the game's existing Texture Builder and real wrapper.
-
-Source attribution and inherited terms are in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Consolidation does not relicense source.

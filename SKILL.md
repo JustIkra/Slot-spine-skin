@@ -22,7 +22,6 @@ Install this repository in the working Python environment:
 
 The shared workspace interpreter is /Users/maksim/MorningCat/.local/skills-venv/bin/python.
 Keep authoring kits and accepted masters distinct from ignored .tmp_<task>/ candidates.
-Preserve third-party terms in THIRD_PARTY_NOTICES.md and licenses/.
 
 ## Choose the stage
 
