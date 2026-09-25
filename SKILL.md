@@ -55,6 +55,22 @@ See [runtime contract](references/spine-pixi-v8-4.2.md) before authoring JSON an
 - Prefer reusable layers/mesh for continuous FX. Video frame swaps require an explicit
   memory budget and a reason the motion cannot reasonably use the reusable rig.
 
+## Prototype to optimized runtime
+
+For slot work, the user's preference is to explore motion with sequences when useful,
+then realize a successful direction with reusable meshes and bones wherever they retain
+its appearance. Split the object by behavior: an evolving surface may retain a short
+sequence while the rim, rays and attached flashes use independent rigs. Preserve the
+accepted silhouette and material detail; do not replace local motion with whole-image warping.
+
+Use the project's existing Urso `npm run assets:textures` and shared TexturePacker atlas
+families. Add new parts to those common maps; do not create a separate runtime atlas for
+each hero, rim or FX. Preserve explicit quality options such as `-w 75`.
+
+Before optimizing or integrating a sequenced effect, read
+[TexturePacker and animation optimization](references/texturepacker-animation-optimization.md)
+for quality limits, compact mesh materials, attached effects and A/B verification.
+
 ## Verification
 
 Run validate-spine.mjs against the installed game runtime; --loop <animation> additionally

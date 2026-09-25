@@ -33,8 +33,13 @@ With noAtlas, texture keys must match attachment paths across every configured P
 quality. Load multipack root _0 once and follow related_multi_packs. The validator checks
 missing/duplicate keys and page bounds; the budget checker counts each image once.
 
-Preserve canonical registration. For the current Urso weighted-mesh adapter, use untrimmed,
-unrotated canonical mesh textures. Do not infer trim safety from region-attachment behavior.
+Preserve canonical registration. For the tested Urso weighted-mesh adapter, final mesh
+regions must retain their canonical bounds without further atlas trimming or rotation.
+This does not require a separate atlas or retaining a large transparent source canvas.
+Prepare a compact material, remap its UVs, clip transparent outer mesh triangles while
+preserving skin weights, then pack it into the common atlas. Verify `trimmed: false` and
+`rotated: false` for those mesh regions at every quality. Do not infer mesh trim safety
+from region-attachment behavior. See [the preparation procedure](texturepacker-animation-optimization.md).
 
 ## Tools
 
